@@ -17,10 +17,10 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DB_FILE = "processed_jobs.json"
 
 # --- TARGET SCRAPING ---
-# 1. LinkedIn (via Guest API yang diizinkan) dengan filter rentang rilis <= 3 Minggu (r1814400)
-LINKEDIN_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=human%20resources&location=Indonesia&f_TPR=r1814400&start=0"
-# 2. JobStreet (URL Search dengan native filter minimum gaji 7.5 Juta dan sort by date terbaru)
-JOBSTREET_URL = "https://www.jobstreet.co.id/id/job-search/hr-jobs/?salary=7500000&salary-type=monthly&sortmode=ListedDate"
+# 1. LinkedIn (via Guest API yang diizinkan) dengan filter rentang rilis <= 3 Minggu (r1814400) dan Lokasi Jakarta
+LINKEDIN_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=human%20resources&location=Greater%20Jakarta&f_TPR=r1814400&start=0"
+# 2. JobStreet (URL Search filter lokasi Jakarta, filter minimum gaji 7.5 Juta dan sort by date terbaru)
+JOBSTREET_URL = "https://www.jobstreet.co.id/id/job-search/hr-jobs-in-jakarta/?salary=7500000&salary-type=monthly&sortmode=ListedDate"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -32,6 +32,9 @@ KEYWORDS = [
     "hr", "human resource", "human capital", "recruitment", "talent",
     "personalia", "personnel", "hcbp", "hrbp"
 ]
+
+# --- FILTER LOKASI JABODETABEK ---
+LOCATION_KEYWORDS = ["jakarta", "bogor", "depok", "tangerang", "bekasi", "jabodetabek", "banten", "remote", "wfh", "indonesia"]
 
 def load_processed_jobs():
     if os.path.exists(DB_FILE):
@@ -97,6 +100,10 @@ def scrape_linkedin():
             company = card.find("h4", class_="base-search-card__subtitle").text.strip() if card.find("h4", class_="base-search-card__subtitle") else ""
             location = card.find("span", class_="job-search-card__location").text.strip() if card.find("span", class_="job-search-card__location") else ""
             
+            # Filter Lokasi Python-side
+            if not any(lk in location.lower() for lk in LOCATION_KEYWORDS):
+                continue
+            
             time_tag = card.find("time")
             time_raw = time_tag.text.strip() if time_tag else "Baru Saja"
             if time_tag and time_tag.get('datetime'):
@@ -138,6 +145,10 @@ def scrape_jobstreet():
             
             location_tag = card.find("span", {"data-automation": "jobLocation"})
             location = location_tag.text.strip() if location_tag else ""
+            
+            # Filter Lokasi Python-side
+            if not any(lk in location.lower() for lk in LOCATION_KEYWORDS):
+                continue
             
             salary_tag = card.find("span", {"data-automation": "jobSalary"})
             salary = salary_tag.text.strip() if salary_tag else "Sesuai Filter Jobstreet (Min. 7.5 Jt)"
