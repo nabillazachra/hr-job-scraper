@@ -18,7 +18,7 @@ DB_FILE = "processed_jobs.json"
 # --- TARGET SCRAPING (LINKEDIN GUEST API) ---
 # Menggunakan RSS / Guest API milik LinkedIn yang terbukti TIDAK diblokir oleh sistem Cloudflare GitHub Actions.
 # URL mencari lowongan dengan kata kunci "hr" di seluruh Indonesia
-BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=hr&location=Indonesia&start=0"
+BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=senior%20human%20resources&location=Indonesia&start=0"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -27,7 +27,8 @@ HEADERS = {
 
 KEYWORDS = [
     "senior hr generalist", "hr generalist", "human capital", 
-    "hcbp", "hr specialist", "hr business partner", "human resources specialist", "hrbp"
+    "hcbp", "hr specialist", "hr business partner", "human resources specialist", "hrbp",
+    "human resource", "hr operation", "hr manager", "hr"
 ]
 SALARY_KEYWORDS = ["7.500.000", "8.000.000", "7.5", "7,5", "8jt", "8 jt", "7.5jt", "7.5 jt"]
 
