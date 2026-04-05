@@ -19,8 +19,7 @@ DB_FILE = "processed_jobs.json"
 # --- TARGET SCRAPING ---
 # 1. LinkedIn (via Guest API yang diizinkan) dengan filter rentang rilis <= 3 Minggu (r1814400) dan Lokasi Jakarta
 LINKEDIN_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=human%20resources&location=Greater%20Jakarta&f_TPR=r1814400&start=0"
-# 2. JobStreet (URL Search filter lokasi Jakarta, filter minimum gaji 7.5 Juta dan sort by date terbaru)
-JOBSTREET_URL = "https://www.jobstreet.co.id/id/job-search/hr-jobs-in-jakarta/?salary=7500000&salary-type=monthly&sortmode=ListedDate"
+
 # 3. Kalibrr (Scrape native web)
 KALIBRR_URL = "https://www.kalibrr.com/job-board/te/hr/co/Indonesia"
 
@@ -130,45 +129,7 @@ def scrape_linkedin():
         logging.error(f"LinkedIn scrape error: {e}")
     return found
 
-def scrape_jobstreet():
-    logging.info("🕷️ Memulai scraping Jobstreet (Dengan filter bawaan Min: 7.5 Jt)...")
-    found = []
-    # Menggunakan cloudscraper agar tidak dihadang secara instan oleh Cloudflare WAF JobStreet
-    scraper = cloudscraper.create_scraper(browser={'browser': 'chrome', 'platform': 'windows', 'desktop': True})
-    try:
-        response = scraper.get(JOBSTREET_URL, timeout=30)
-        soup = BeautifulSoup(response.text, 'html.parser')
-        
-        cards = soup.find_all("article", {"data-automation": "normalJob"})[:15]
-        for card in cards:
-            title_tag = card.find("a", {"data-automation": "jobTitle"})
-            if not title_tag: continue
-            
-            title = title_tag.text.strip()
-            link = "https://www.jobstreet.co.id" + title_tag['href']
-            jid = link.split('?')[0].split('/')[-1]
-            
-            company_tag = card.find("a", {"data-automation": "jobCompany"})
-            company = company_tag.text.strip() if company_tag else ""
-            
-            location_tag = card.find("span", {"data-automation": "jobLocation"})
-            location = location_tag.text.strip() if location_tag else ""
-            
-            # Filter Lokasi Python-side
-            if not any(lk in location.lower() for lk in LOCATION_KEYWORDS):
-                continue
-            
-            salary_tag = card.find("span", {"data-automation": "jobSalary"})
-            salary = salary_tag.text.strip() if salary_tag else "Sesuai Filter Jobstreet (Min. 7.5 Jt)"
-            
-            if any(kw in title.lower() for kw in KEYWORDS):
-                found.append({
-                    "id": f"js-{jid}", "title": title, "company": company, "location": location,
-                    "salary": salary, "time_ago": "Baru berdasarkan urutan web", "link": link, "platform": "JobStreet"
-                })
-    except Exception as e:
-        logging.error(f"Jobstreet scrape error: {e}")
-    return found
+
 
 def scrape_kalibrr():
     logging.info("🕷️ Memulai scraping Kalibrr Jobs...")
@@ -209,8 +170,8 @@ def scrape_kalibrr():
 def main():
     processed = load_processed_jobs()
     
-    # Menggabungkan hasil scrape ketiga situs tersebut
-    jobs = scrape_linkedin() + scrape_jobstreet() + scrape_kalibrr()
+    # Menggabungkan hasil scrape kedua situs tersebut
+    jobs = scrape_linkedin() + scrape_kalibrr()
     
     new_jobs_count = 0
     for job in jobs:
