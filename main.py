@@ -21,6 +21,8 @@ DB_FILE = "processed_jobs.json"
 LINKEDIN_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=human%20resources&location=Greater%20Jakarta&f_TPR=r1814400&start=0"
 # 2. JobStreet (URL Search filter lokasi Jakarta, filter minimum gaji 7.5 Juta dan sort by date terbaru)
 JOBSTREET_URL = "https://www.jobstreet.co.id/id/job-search/hr-jobs-in-jakarta/?salary=7500000&salary-type=monthly&sortmode=ListedDate"
+# 3. Kalibrr (Scrape native web)
+KALIBRR_URL = "https://www.kalibrr.com/job-board/te/hr/co/Indonesia"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -168,11 +170,47 @@ def scrape_jobstreet():
         logging.error(f"Jobstreet scrape error: {e}")
     return found
 
+def scrape_kalibrr():
+    logging.info("🕷️ Memulai scraping Kalibrr Jobs...")
+    found = []
+    try:
+        response = requests.get(KALIBRR_URL, headers=HEADERS, timeout=20)
+        soup = BeautifulSoup(response.text, 'html.parser')
+        job_cards = soup.find_all("div", class_="k-font-dm-sans")[:15]
+        
+        for card in job_cards:
+            title_tag = card.find("a", itemprop="name")
+            if not title_tag: continue
+            
+            title = title_tag.get_text(strip=True)
+            link = "https://www.kalibrr.com" + title_tag['href']
+            jid = title_tag['href'].split('/jobs/')[1].split('/')[0] if '/jobs/' in title_tag['href'] else title
+            
+            company_tag = card.find("a", class_="k-text-subdued")
+            company = company_tag.get_text(strip=True) if company_tag else ""
+            
+            info_spans = card.find_all("span", class_="k-text-gray-500")
+            location = info_spans[0].get_text(strip=True) if len(info_spans) > 0 else ""
+            time_raw = info_spans[-1].get_text(strip=True) if len(info_spans) > 1 else "Baru Saja"
+            
+            # Filter Lokasi Python-side
+            if not any(lk in location.lower() for lk in LOCATION_KEYWORDS):
+                continue
+                
+            if any(kw in title.lower() for kw in KEYWORDS):
+                found.append({
+                    "id": f"kb-{jid}", "title": title, "company": company, "location": location,
+                    "salary": "Cek di Kalibrr", "time_ago": time_raw, "link": link, "platform": "Kalibrr"
+                })
+    except Exception as e:
+        logging.error(f"Kalibrr scrape error: {e}")
+    return found
+
 def main():
     processed = load_processed_jobs()
     
-    # Menggabungkan hasil scrape kedua situs tersebut
-    jobs = scrape_linkedin() + scrape_jobstreet()
+    # Menggabungkan hasil scrape ketiga situs tersebut
+    jobs = scrape_linkedin() + scrape_jobstreet() + scrape_kalibrr()
     
     new_jobs_count = 0
     for job in jobs:
