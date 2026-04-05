@@ -16,9 +16,8 @@ TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 DB_FILE = "processed_jobs.json"
 
 # --- TARGET SCRAPING (LINKEDIN GUEST API) ---
-# Menggunakan RSS / Guest API milik LinkedIn yang terbukti TIDAK diblokir oleh sistem Cloudflare GitHub Actions.
-# URL mencari lowongan dengan kata kunci "hr" di seluruh Indonesia
-BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=senior%20human%20resources&location=Indonesia&start=0"
+# Menggunakan filter `f_TPR=r1814400` di URL yang artinya rentang waktu rilis maksimum 21 Hari (3 Minggu).
+BASE_URL = "https://www.linkedin.com/jobs-guest/jobs/api/seeMoreJobPostings/search?keywords=senior%20human%20resources&location=Indonesia&f_TPR=r1814400&start=0"
 
 HEADERS = {
     "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -53,7 +52,6 @@ def save_processed_jobs(jobs_list):
 def get_job_description(url):
     """Mengambil rincian full loker untuk mencari angka gaji"""
     try:
-        # Tambahkan delay agar tidak di block karena ngespam terlalu cepat
         time.sleep(1) 
         response = requests.get(url, headers=HEADERS, timeout=10)
         soup = BeautifulSoup(response.text, 'html.parser')
@@ -73,6 +71,7 @@ def send_telegram_message(job):
     text += f"💼 *Posisi:* {job['title']}\n"
     text += f"🏢 *Perusahaan:* {job['company']}\n"
     text += f"📍 *Lokasi:* {job['location']}\n"
+    text += f"⏳ *Diposting:* {job['time_ago']}\n"
     text += f"✨ *Platform:* LinkedIn\n\n"
     text += f"🔗 *Link Lamaran:*\n{job['link']}"
 
@@ -108,7 +107,6 @@ def scrape_jobs():
     logging.info(f"Ditemukan {len(job_cards)} lowongan HR di halaman ini. Mulai melakukan filter...")
     found_jobs = []
     
-    # Batasi pengambilan untuk performa karena GitHub Actions dibatasi limit menit gratis dan LinkedIn gampang memblokir request beruntun
     for card in job_cards[:15]: 
         try:
             title_tag = card.find("h3", class_="base-search-card__title")
@@ -117,8 +115,6 @@ def scrape_jobs():
             link_tag = card.find("a", class_="base-card__full-link")
             job_link = link_tag['href'] if link_tag else ""
             
-            # Memisahkan ID unik linkedin
-            # Contoh https://id.linkedin.com/jobs/view/human-resources...-4390431163?position=...
             job_id = job_link.split('?')[0].split('-')[-1] if job_link else job_title
             
             company_tag = card.find("h4", class_="base-search-card__subtitle")
@@ -127,22 +123,31 @@ def scrape_jobs():
             location_tag = card.find("span", class_="job-search-card__location")
             location = location_tag.text.strip() if location_tag else "Lokasi Tidak Diketahui"
             
-            job_title_lower = job_title.lower()
+            # FITUR BARU: Membaca stempel waktu rilis lowongan
+            time_tag = card.find("time")
+            time_raw_text = time_tag.text.strip() if time_tag else "Baru Saja Mendarat"
+            time_datetime = time_tag.get('datetime', '') if time_tag else ""
+            
+            # Filter ganda keamanan waktu: skip jika usia file html ini di atas 21 hari (3 minggu)
+            if time_datetime:
+                try:
+                    t_released = datetime.strptime(time_datetime, "%Y-%m-%d")
+                    usia_hari = (datetime.now() - t_released).days
+                    if usia_hari > 21:
+                        continue # Lowongan usang 3 minggu +, hentikan
+                except ValueError:
+                    pass
 
-            # --- LOGIKA FILTERING ---
+            job_title_lower = job_title.lower()
             is_keyword_match = any(kw in job_title_lower for kw in KEYWORDS)
             
             if is_keyword_match:
-                # Opsi Tambahan: Mengambil deskripsi spesifik job untuk mencari angka gaji
-                # desc = get_job_description(job_link)
-                # print(f"Deskripsi loker length: {len(desc)}")
-                
-                # Kita tidak filter paksa keyword gaji di sini karena banyak lowongan tidak mencantumkannya secara eksplisit.
                 found_jobs.append({
                     "id": job_id,
                     "title": job_title,
                     "company": company,
                     "location": location,
+                    "time_ago": time_raw_text.capitalize(),
                     "link": job_link
                 })
                 
@@ -164,7 +169,7 @@ def main():
             if success:
                 processed_jobs.append(job["id"])
                 new_jobs_count += 1
-                time.sleep(2) # Delay telegram API spam protection
+                time.sleep(2)
     
     if new_jobs_count > 0:
         save_processed_jobs(processed_jobs)
