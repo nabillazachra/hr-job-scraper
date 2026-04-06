@@ -3,9 +3,9 @@ name: Daily HR Job Scraper
 # Bot akan jalan berdasarkan schedule Cron
 on:
   schedule:
-    # 00:00 UTC = Jam 07:00 Pagi waktu WIB
-    # 10:00 UTC = Jam 17:00 Pagi waktu WIB
-    - cron: '0 0,10 * * *'
+    # 00:15 UTC = Jam 07:15 Pagi waktu WIB (Sengaja digeser ke menit 15 agar tidak antre di server GitHub)
+    # 10:15 UTC = Jam 17:15 Pagi waktu WIB
+    - cron: '15 0,10 * * *'
     
   # Memberikan tombol manual untuk tes jika ingin coba run klik dari Github Web UI!
   workflow_dispatch: 
